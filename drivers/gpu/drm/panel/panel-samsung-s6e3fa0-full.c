@@ -359,9 +359,9 @@ static int s6e3fa0_set_brightness(struct backlight_device *bldev)
 	const int candela = backlight_get_brightness(bldev);
 	int r;
 
-	//r = s6e3fa0_test_key_toggle(ctx, true, TK_LEVEL_1);
-	//if (r < 0)
-	//	return r;
+	r = s6e3fa0_test_key_toggle(ctx, true, TK_LEVEL_1);
+	if (r < 0)
+		return r;
 	r = s6e3fa0_write_aid_control(ctx, candela);
 	if (r < 0)
 		return r;
@@ -374,9 +374,9 @@ static int s6e3fa0_set_brightness(struct backlight_device *bldev)
 	r = s6e3fa0_write_gamma_apply(ctx);
 	if (r < 0)
 		return r;
-	//r = s6e3fa0_test_key_toggle(ctx, false, TK_LEVEL_1);
-	//if (r < 0)
-	//	return r;
+	r = s6e3fa0_test_key_toggle(ctx, false, TK_LEVEL_1);
+	if (r < 0)
+		return r;
 
 	return 0;
 }
@@ -428,7 +428,7 @@ static int s6e3fa0_init(struct s6e3fa0_ctx *ctx)
 
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
-	//s6e3fa0_test_key_toggle(ctx, true, TK_LEVEL_2);
+	s6e3fa0_test_key_toggle(ctx, true, TK_LEVEL_2);
 
 	if (ctx->subtype == PANEL_S6E3FA0) {
 		/* Configure MIPI Interface (Single DSI) */
@@ -471,7 +471,7 @@ static int s6e3fa0_init(struct s6e3fa0_ctx *ctx)
 		dev_warn(&dsi->dev, "init: skipped, unknown panel!\n");
 	}
 
-	//s6e3fa0_test_key_toggle(ctx, false, TK_LEVEL_2);
+	s6e3fa0_test_key_toggle(ctx, false, TK_LEVEL_2);
 
 	return 0;
 }
