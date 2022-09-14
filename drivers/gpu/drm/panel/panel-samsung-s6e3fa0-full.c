@@ -58,7 +58,7 @@ static const u8 map_candela_to_aid[S6E3FA0_NUM_GAMMA_LEVELS] = {
 /* AID (Amoled Impulsive Driving) tables */
 static const u8 seq_s6e3fa0_aid[NUM_AID_SEQUENCES][AID_SEQUENCE_LEN] = {
 	{MCS_AID_CONTROL, 0x00, 0x06, 0x00, 0x06}, /* 0 */
-	{MCS_AID_CONTROL, 0x00, 0x06, 0x03, 0x06}, /* 1 */
+	{MCS_AID_CONTROL, 0x00, 0x06, 0x00, 0x07}, /* 1 */
 	{MCS_AID_CONTROL, 0x00, 0x06, 0x00, 0x08}, /* 2 */
 	{MCS_AID_CONTROL, 0x00, 0x06, 0x00, 0x77}, /* 3 */
 	{MCS_AID_CONTROL, 0x00, 0x06, 0x00, 0xE5}, /* 4 */
