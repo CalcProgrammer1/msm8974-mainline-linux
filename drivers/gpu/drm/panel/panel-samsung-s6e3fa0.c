@@ -16,7 +16,7 @@
 
 #include <video/mipi_display.h>
 
-/* Panel variants */
+/* Panel ID */
 #define LCD_ID_S6E3FA0		0x414024
 
 /* Manufacturer Command Set */
@@ -222,8 +222,6 @@ static const u8 seq_s6e3fa0_test_key_dis[6] = {
 struct s6e3fa0_sequences_data {
 	const u8 *test_key_enable_seq;
 	const u8 *test_key_disable_seq;
-	/* Whether to unlock level 2 MTP command set for set_brigthness */
-	bool brightness_use_level2;
 
 	const u8 (*aid_seq)[NUM_AID_SEQUENCES][AID_SEQUENCE_LEN];
 	const u8 (*elvss_seq)[NUM_ELVSS_SEQUENCES][ELVSS_SEQUENCE_LEN];
@@ -233,15 +231,9 @@ struct s6e3fa0_sequences_data {
 static const struct s6e3fa0_sequences_data seqdata_s6e3fa0 = {
 	.test_key_enable_seq = seq_s6e3fa0_test_key_en,
 	.test_key_disable_seq = seq_s6e3fa0_test_key_dis,
-	.brightness_use_level2 = false,
 	.aid_seq = &seq_s6e3fa0_aid,
 	.elvss_seq = &seq_s6e3fa0_elvss,
 	.gamma_seq = &seq_s6e3fa0_lux
-};
-
-enum s6e3fa0_panel_subtype {
-	PANEL_UNKNOWN = 0,
-	PANEL_S6E3FA0,
 };
 
 struct s6e3fa0_ctx {
@@ -249,7 +241,6 @@ struct s6e3fa0_ctx {
 	struct mipi_dsi_device *dsi;
 	struct regulator_bulk_data supplies[2];
 	struct gpio_desc *reset_gpio;
-	enum s6e3fa0_panel_subtype subtype;
 	const struct s6e3fa0_sequences_data *seq_data;
 };
 
@@ -295,9 +286,8 @@ static int s6e3fa0_test_key_toggle(struct s6e3fa0_ctx *ctx, bool enable,
 
 	/*
 	 * During init lock/unlock 2nd level MTP commands (send bytes 4,5,6)
-	 * For set_brightness - depends on panel subtype.
 	 */
-	if (level == TK_LEVEL_2 || ctx->seq_data->brightness_use_level2)
+	if (level == TK_LEVEL_2)
 		ret = mipi_dsi_generic_write(dsi, seq + 3, 3);
 	return ret;
 }
@@ -347,9 +337,9 @@ static int s6e3fa0_write_gamma_apply(struct s6e3fa0_ctx *ctx)
 {
 	/* From vendor driver: Gamma, LTPS(AID) update */
 	dsi_generic_write_seq(ctx->dsi, 0xf7, 0x03);
+	
 	/* S6E3FA0 has additional command */
-	if (ctx->subtype == PANEL_S6E3FA0)
-		dsi_generic_write_seq(ctx->dsi, 0xf7, 0x00);
+	//dsi_generic_write_seq(ctx->dsi, 0xf7, 0x00);
 	return 0;
 }
 
@@ -381,7 +371,7 @@ static int s6e3fa0_set_brightness(struct backlight_device *bldev)
 	return 0;
 }
 
-static int s6e3fa0_detect_panel_type(struct s6e3fa0_ctx *ctx)
+static int s6e3fa0_verify_panel_id(struct s6e3fa0_ctx *ctx)
 {
 	struct mipi_dsi_device *dsi = ctx->dsi;
 	u8 id1, id2, id3;
@@ -404,19 +394,17 @@ static int s6e3fa0_detect_panel_type(struct s6e3fa0_ctx *ctx)
 	case LCD_ID_S6E3FA0:
 		dev_info(&dsi->dev, "detected S6E3FA0 panel (ID: 0x%x)\n",
 			 lcd_id);
-		ctx->subtype = PANEL_S6E3FA0;
 		ctx->seq_data = &seqdata_s6e3fa0;
 		break;
 	default:
 		dev_warn(&dsi->dev, "unsupported panel ID: 0x%x\n", lcd_id);
-		ctx->subtype = PANEL_UNKNOWN;
 		return -ENODEV;
 	}
 	return 0;
 
 read_id_fail:
 	dev_err(&dsi->dev, "could not read panel MTP ID\n");
-	return ret;
+	return -ENODEV
 }
 
 static int s6e3fa0_init(struct s6e3fa0_ctx *ctx)
@@ -430,46 +418,39 @@ static int s6e3fa0_init(struct s6e3fa0_ctx *ctx)
 
 	s6e3fa0_test_key_toggle(ctx, true, TK_LEVEL_2);
 
-	if (ctx->subtype == PANEL_S6E3FA0) {
-		/* Configure MIPI Interface (Single DSI) */
-		cmd = 0xf2;
-		ret = mipi_dsi_dcs_write_buffer(dsi, &cmd, 1);
-		if (ret < 0)
-			return ret;
-		cmd = 0xf9;
-		ret = mipi_dsi_dcs_write_buffer(dsi, &cmd, 1);
-		if (ret < 0)
-			return ret;
+	/* Configure MIPI Interface (Single DSI) */
+	cmd = 0xf2;
+	ret = mipi_dsi_dcs_write_buffer(dsi, &cmd, 1);
+	if (ret < 0)
+		return ret;
+	cmd = 0xf9;
+	ret = mipi_dsi_dcs_write_buffer(dsi, &cmd, 1);
+	if (ret < 0)
+		return ret;
 
-		usleep_range(5000, 6000);
+	usleep_range(5000, 6000);
 
-		s6e3fa0_write_gamma(ctx, candela);
-		s6e3fa0_write_aid_control(ctx, candela);
+	s6e3fa0_write_gamma(ctx, candela);
+	s6e3fa0_write_aid_control(ctx, candela);
 
-		/* CAPS ELVSS Set */
-		dsi_generic_write_seq(dsi, MCS_ELVSS_CONTROL, 0x98, 0x04, 0x00,
-				      0x00, 0x00, 0x00, 0x00, 0x03, 0x55, 0x54,
-				      0x20, 0x00, 0x0a, 0xaa, 0xaf, 0x0f, 0x02,
-				      0x22, 0x22, 0x10);
+	/* CAPS ELVSS Set */
+	dsi_generic_write_seq(dsi, MCS_ELVSS_CONTROL, 0x88, 0x0a);
 
-		/* Unknown command: 16 frame Averaging (0x41) */
-		dsi_generic_write_seq(dsi, 0xb5, 0x41);
+	/* Unknown command: 16 frame Averaging (0x41) */
+	dsi_generic_write_seq(dsi, 0xb5, 0x41);
 
-		s6e3fa0_write_gamma_apply(ctx);
+	s6e3fa0_write_gamma_apply(ctx);
 
-		/* TE Vsync ON  */
-		dsi_generic_write_seq(dsi, 0xb0, 0x02);
-		dsi_generic_write_seq(dsi, 0xfd, 0x0a);
-		dsi_generic_write_seq(dsi, 0xfe, 0x80);
-		dsi_generic_write_seq(dsi, 0xfe, 0x00);
+	/* TE Vsync ON  */
+	dsi_generic_write_seq(dsi, 0xb0, 0x02);
+	dsi_generic_write_seq(dsi, 0xfd, 0x0a);
+	dsi_generic_write_seq(dsi, 0xfe, 0x80);
+	dsi_generic_write_seq(dsi, 0xfe, 0x00);
 
-		mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
+	mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 
-		/* Touch Hsync Enable */
-		dsi_generic_write_seq(dsi, 0xbd, 0x05, 0x02, 0x02);
-	} else {
-		dev_warn(&dsi->dev, "init: skipped, unknown panel!\n");
-	}
+	/* Touch Hsync Enable */
+	dsi_generic_write_seq(dsi, 0xbd, 0x05, 0x02, 0x02);
 
 	s6e3fa0_test_key_toggle(ctx, false, TK_LEVEL_2);
 
@@ -572,10 +553,11 @@ static int s6e3fa0_prepare(struct drm_panel *panel)
 		return ret;
 	}
 
-	/* Detect panel subtype */
-	ret = s6e3fa0_detect_panel_type(ctx);
-	if (ret < 0)
-		dev_warn(dev, "Failed to detect LCD type!\n");
+	ret = s6e3fa0_verify_panel_id(ctx);
+	if (ret < 0) {
+		dev_err(dev, "Failed to verify panel ID!\n");
+		return ret;
+	}
 
 	ret = s6e3fa0_init(ctx);
 	if (ret < 0) {
@@ -692,9 +674,6 @@ static int s6e3fa0_probe(struct mipi_dsi_device *dsi)
 	if (IS_ERR(ctx->reset_gpio))
 		return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio),
 				     "Failed to get reset-gpios\n");
-
-	/* We don't know panel variant yet */
-	ctx->subtype = PANEL_UNKNOWN;
 
 	ctx->dsi = dsi;
 	mipi_dsi_set_drvdata(dsi, ctx);
