@@ -421,10 +421,6 @@ static int s6e3fa0_init(struct s6e3fa0_ctx *ctx)
 	ret = mipi_dsi_dcs_write_buffer(dsi, &cmd, 1);
 	if (ret < 0)
 		return ret;
-	cmd = 0xf9;
-	ret = mipi_dsi_dcs_write_buffer(dsi, &cmd, 1);
-	if (ret < 0)
-		return ret;
 
 	usleep_range(5000, 6000);
 
@@ -440,10 +436,7 @@ static int s6e3fa0_init(struct s6e3fa0_ctx *ctx)
 	s6e3fa0_write_gamma_apply(ctx);
 
 	/* TE Vsync ON  */
-	dsi_generic_write_seq(dsi, 0xb0, 0x02);
-	dsi_generic_write_seq(dsi, 0xfd, 0x0a);
-	dsi_generic_write_seq(dsi, 0xfe, 0x80);
-	dsi_generic_write_seq(dsi, 0xfe, 0x00);
+	dsi_generic_write_seq(dsi, 0x35, 0x00);
 
 	mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 
