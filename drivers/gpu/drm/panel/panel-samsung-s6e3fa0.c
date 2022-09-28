@@ -427,21 +427,24 @@ static int s6e3fa0_init(struct s6e3fa0_ctx *ctx)
 	s6e3fa0_write_gamma(ctx, candela);
 	s6e3fa0_write_aid_control(ctx, candela);
 
-	/* CAPS ELVSS Set */
+	/* ELVSS Setting for 300Cd  */
 	dsi_generic_write_seq(dsi, MCS_ELVSS_CONTROL, 0x88, 0x0a);
-
-	/* Unknown command: 16 frame Averaging (0x41) */
-	dsi_generic_write_seq(dsi, 0xb5, 0x41);
 
 	s6e3fa0_write_gamma_apply(ctx);
 
-	/* TE Vsync ON  */
-	dsi_generic_write_seq(dsi, 0x35, 0x00);
-
+	/* Vsync Enable(Tear On) : 0x00, Hsync Enable : 0x01  */
 	mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 
-	/* Touch Hsync Enable */
-	dsi_generic_write_seq(dsi, 0xbd, 0x05, 0x02, 0x02);
+	/* RE Condition Setting for EVT1 */
+	dsi_generic_write_seq(dsi, 0xc0, 0x00, 0x02, 0x03, 0x32, 0x03, 0x44, 0x44, 0xc0, 0x00, 0x1c, 0x20, 0xe8);
+	dsi_generic_write_seq(dsi, 0xe3, 0xff, 0xff, 0xff, 0xff);
+	dsi_generic_write_seq(dsi, 0xfe, 0x00, 0x03);
+	dsi_generic_write_seq(dsi, 0xb0, 0x2b);
+	dsi_generic_write_seq(dsi, 0xfe, 0xe4);
+
+	/* ERR_FG, Hsync On */
+	dsi_generic_write_seq(dsi, 0xbd, 0xed, 0x0c, 0x04);
+	dsi_generic_write_seq(dsi, 0xff, 0x01);
 
 	s6e3fa0_test_key_toggle(ctx, false, TK_LEVEL_2);
 
