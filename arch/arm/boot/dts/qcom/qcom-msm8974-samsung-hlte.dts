@@ -134,6 +134,10 @@
 	};
 };
 
+&blsp1_i2c6 {
+	status = "okay";
+};
+
 &blsp2_i2c6 {
 	status = "okay";
 
